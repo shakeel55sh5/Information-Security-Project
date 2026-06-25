@@ -29,3 +29,35 @@ The tool replaces the last bit (the least significant one) of these channels wit
 - Put your images in the `images/` folder.
 - Use the menu-driven interface to hide, extract, or scan for data.
 - Encoded images are saved with a `hidden_` prefix.
+
+
+  The front-end of this project is served directly as a set of static files (inside the static folder, starting with
+  index.html) by the backend app.py (which uses FastAPI).
+
+  To run the web app and access the frontend, you need to start the FastAPI server:
+
+  ### 1. Open your terminal and navigate to the project directory
+
+    cd /home/shakeel/python/Info_Project
+
+  ### 2. Activate the virtual environment
+
+  Since the project has a  venv  directory, activate it:
+
+    source venv/bin/activate
+
+  ### 3. Run the FastAPI server using  uvicorn 
+
+  Start the server with the reload option enabled:
+
+    uvicorn app:app --reload
+
+  ### 4. Access the Frontend
+
+  Once the server starts running, open your web browser and go to:
+
+  • http://127.0.0.1:8000/
+  ──────
+  Note: If you want to run the terminal-based interactive CLI version instead of the web version, you can run:
+
+    python main.py
