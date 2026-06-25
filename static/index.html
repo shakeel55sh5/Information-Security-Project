@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CovertPixel | Steganography & Steganalysis Suite</title>
+    <meta name="description" content="A premium responsive web interface for secure LSB image steganography and steganalysis detection.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Styleheet -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="glow-bg"></div>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo">
+                <i class="fa-solid fa-user-shield logo-icon"></i>
+                <div class="logo-text">
+                    <h1>CovertPixel</h1>
+                    <span>Information Security Lab</span>
+                </div>
+            </div>
+            <div class="header-badge">
+                <span class="status-dot green"></span>
+                <span>LSB Steganography Engine</span>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <main class="workspace">
+            <!-- Left Panel: Workspace Controls -->
+            <section class="control-panel">
+                <div class="card glass-card">
+                    <h2 class="card-title"><i class="fa-solid fa-folder-open icon-purple"></i> 1. Select Image Source</h2>
+                    <p class="card-subtitle">Upload your own image or generate a clean sample one to begin.</p>
+                    
+                    <!-- Drag & Drop Zone -->
+                    <div id="dropzone" class="dropzone">
+                        <input type="file" id="file-input" accept="image/png, image/jpeg, image/jpg" hidden>
+                        <div class="dropzone-content">
+                            <i class="fa-cloud-arrow-up upload-icon"></i>
+                            <p class="dropzone-text">Drag & drop your image here</p>
+                            <p class="dropzone-subtext">Supports PNG, JPG, JPEG (will be processed as PNG)</p>
+                            <button class="btn btn-secondary" id="browse-btn">Browse Files</button>
+                        </div>
+                    </div>
+
+                    <!-- Quick Tools -->
+                    <div class="quick-tools">
+                        <button class="btn btn-tertiary" id="generate-sample-btn">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Clean Sample Image
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card glass-card" id="operations-card">
+                    <h2 class="card-title"><i class="fa-solid fa-sliders icon-blue"></i> 2. Operations</h2>
+                    
+                    <!-- Operation Tabs -->
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="encode-tab" id="tab-encode">
+                            <i class="fa-solid fa-lock"></i> Hide Message
+                        </button>
+                        <button class="tab-btn" data-tab="decode-tab" id="tab-decode">
+                            <i class="fa-solid fa-key"></i> Extract Message
+                        </button>
+                        <button class="tab-btn" data-tab="detect-tab" id="tab-detect">
+                            <i class="fa-solid fa-radar"></i> Analyze & Detect
+                        </button>
+                    </div>
+
+                    <!-- Tab Contents -->
+                    <div class="tab-content">
+                        <!-- Encode Tab -->
+                        <div class="tab-pane active" id="encode-tab">
+                            <label for="secret-message" class="input-label">Secret Message to Embed</label>
+                            <textarea id="secret-message" placeholder="Type the secret message you want to inject into the pixels..." rows="4"></textarea>
+                            <div class="capacity-bar-container">
+                                <div class="capacity-info">
+                                    <span>Payload Size: <strong id="payload-size">0</strong> chars</span>
+                                    <span>Max Capacity: <strong id="max-capacity">N/A</strong></span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="capacity-fill" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary btn-block" id="encode-btn" disabled>
+                                <i class="fa-solid fa-circle-play"></i> Encode & Hide Message
+                            </button>
+                        </div>
+
+                        <!-- Decode Tab -->
+                        <div class="tab-pane" id="decode-tab">
+                            <p class="tab-desc">Extract the message embedded in the currently selected image file.</p>
+                            <button class="btn btn-primary btn-block" id="decode-btn" disabled>
+                                <i class="fa-solid fa-key"></i> Extract Hidden Message
+                            </button>
+                        </div>
+
+                        <!-- Detect Tab -->
+                        <div class="tab-pane" id="detect-tab">
+                            <p class="tab-desc">Perform steganalysis on the image to inspect for delimiters and determine if it carries a hidden payload.</p>
+                            <button class="btn btn-primary btn-block" id="detect-btn" disabled>
+                                <i class="fa-solid fa-eye"></i> Scan Image for Steganography
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Image Display & Results -->
+            <section class="preview-panel">
+                <div class="card glass-card preview-card">
+                    <h2 class="card-title"><i class="fa-solid fa-display icon-green"></i> Workspace Display</h2>
+                    
+                    <!-- Previews Container -->
+                    <div class="preview-workspace">
+                        <div class="preview-box empty" id="original-preview-box">
+                            <span class="preview-label">Original Image</span>
+                            <div class="preview-placeholder">
+                                <i class="fa-regular fa-image"></i>
+                                <p>No image loaded</p>
+                            </div>
+                            <img id="original-preview-img" src="" alt="Original Preview" class="hidden">
+                            <div class="image-meta hidden" id="original-meta">
+                                <span id="orig-meta-name">image.png</span>
+                                <span id="orig-meta-dim">0x0</span>
+                            </div>
+                        </div>
+
+                        <div class="preview-box empty" id="processed-preview-box">
+                            <span class="preview-label" id="processed-label">Processed Image</span>
+                            <div class="preview-placeholder">
+                                <i class="fa-regular fa-images"></i>
+                                <p>Awaiting operation...</p>
+                            </div>
+                            <img id="processed-preview-img" src="" alt="Processed Preview" class="hidden">
+                            <div class="image-meta hidden" id="processed-meta">
+                                <span id="proc-meta-name">processed.png</span>
+                                <a href="" id="download-link" class="download-link" download="covert_pixel.png">
+                                    <i class="fa-solid fa-download"></i> Download PNG
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Console -->
+                <div class="card glass-card console-card">
+                    <h2 class="card-title"><i class="fa-solid fa-terminal icon-neon"></i> System Terminal</h2>
+                    <div class="console-box" id="console-box">
+                        <div class="console-line system-msg">> Engine initialized. CovertPixel steganography ready.</div>
+                        <div class="console-line system-msg">> Please select or upload an image to begin operations.</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>&copy; 2026 CovertPixel. Built for Information Security and Cryptography demonstration.</p>
+            <div class="footer-links">
+                <span>Methodology: LSB Replacement</span>
+                <span class="separator">|</span>
+                <span>Format: Lossless PNG Output</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Custom Script -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
