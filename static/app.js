@@ -2,9 +2,11 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     // State Variables
-    let currentImageId = null;
+    let currentFile = null; // File/Blob held client-side; sent with each operation
     let currentImageWidth = 0;
     let currentImageHeight = 0;
+    let currentObjectUrl = null; // tracks the original preview's blob URL for cleanup
+    let processedObjectUrl = null; // tracks the processed preview's blob URL for cleanup
     const delimiterLength = 9; // "###END###" is 9 characters
 
     // DOM Elements
@@ -108,34 +110,41 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             generateSampleBtn.disabled = true;
             log('Requesting sample clean image generation...');
-            
+
             const response = await fetch('/generate_sample', { method: 'POST' });
-            if (!response.ok) throw new Error('Failed to generate sample image');
-            
-            const data = await response.json();
-            currentImageId = data.image_id;
-            
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.detail || 'Failed to generate sample image');
+            }
+
+            const blob = await response.blob();
+            const file = new File([blob], 'sample.png', { type: 'image/png' });
+            currentFile = file;
+
+            if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+            currentObjectUrl = URL.createObjectURL(blob);
+
             // Set image source and trigger load event to get dimensions
-            originalPreviewImg.src = data.image_url;
+            originalPreviewImg.src = currentObjectUrl;
             originalPreviewImg.onload = () => {
                 currentImageWidth = originalPreviewImg.naturalWidth;
                 currentImageHeight = originalPreviewImg.naturalHeight;
-                
+
                 // Update UI elements
                 originalPreviewBox.classList.remove('empty');
                 originalPreviewImg.classList.remove('hidden');
                 originalMeta.classList.remove('hidden');
-                origMetaName.innerText = data.filename;
+                origMetaName.innerText = file.name;
                 origMetaDim.innerText = `${currentImageWidth}x${currentImageHeight}`;
-                
+
                 // Clear processed output
                 clearProcessedView();
-                
+
                 // Recalculate capacity
                 const maxChars = Math.floor((currentImageWidth * currentImageHeight * 3) / 8) - delimiterLength;
                 maxCapacityEl.innerText = `${maxChars} chars`;
-                
-                log(`Sample image loaded: ${data.filename} (${currentImageWidth}x${currentImageHeight})`, 'success');
+
+                log(`Sample image loaded: ${file.name} (${currentImageWidth}x${currentImageHeight})`, 'success');
                 enableActionButtons();
                 updateCapacityInfo();
             };
@@ -146,58 +155,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Upload & Handle Selected File
-    async function handleFileSelection(file) {
+    // Handle Selected File (kept entirely client-side until an operation is run)
+    function handleFileSelection(file) {
         if (!file.type.match('image.*')) {
             log('Error: File must be a valid PNG, JPG, or JPEG image.', 'error');
             return;
         }
-        
+
         try {
-            log(`Uploading image: ${file.name}...`);
-            
-            const formData = new FormData();
-            formData.append('file', file);
-            
-            const response = await fetch('/upload_image', {
-                method: 'POST',
-                body: formData
-            });
-            
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.detail || 'Image upload failed');
-            }
-            
-            const data = await response.json();
-            currentImageId = data.image_id;
-            
+            currentFile = file;
+
+            if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+            currentObjectUrl = URL.createObjectURL(file);
+
             // Display Image Preview and obtain dimensions
-            originalPreviewImg.src = data.image_url;
+            originalPreviewImg.src = currentObjectUrl;
             originalPreviewImg.onload = () => {
                 currentImageWidth = originalPreviewImg.naturalWidth;
                 currentImageHeight = originalPreviewImg.naturalHeight;
-                
+
                 // Update UI elements
                 originalPreviewBox.classList.remove('empty');
                 originalPreviewImg.classList.remove('hidden');
                 originalMeta.classList.remove('hidden');
                 origMetaName.innerText = file.name;
                 origMetaDim.innerText = `${currentImageWidth}x${currentImageHeight}`;
-                
+
                 // Clear processed output
                 clearProcessedView();
-                
+
                 // Recalculate capacity
                 const maxChars = Math.floor((currentImageWidth * currentImageHeight * 3) / 8) - delimiterLength;
                 maxCapacityEl.innerText = `${maxChars} chars`;
-                
-                log(`Image uploaded successfully. ID: ${currentImageId.substring(0,8)}...`, 'success');
+
+                log(`Image loaded: ${file.name} (${currentImageWidth}x${currentImageHeight})`, 'success');
                 enableActionButtons();
                 updateCapacityInfo();
             };
         } catch (error) {
-            log(`Upload Error: ${error.message}`, 'error');
+            log(`Error: ${error.message}`, 'error');
         }
     }
 
@@ -219,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
     secretMessageTextarea.addEventListener('input', updateCapacityInfo);
 
     function updateCapacityInfo() {
-        if (!currentImageId) return;
+        if (!currentFile) return;
         
         const text = secretMessageTextarea.value;
         const size = text.length;
@@ -249,41 +245,43 @@ document.addEventListener('DOMContentLoaded', () => {
     // Operations Handlers: ENCODE
     encodeBtn.addEventListener('click', async () => {
         const message = secretMessageTextarea.value.trim();
-        if (!message || !currentImageId) return;
-        
+        if (!message || !currentFile) return;
+
         try {
             encodeBtn.disabled = true;
             log('Encoding secret message into image pixels...');
-            
-            const params = new URLSearchParams({
-                image_id: currentImageId,
-                secret_message: message
+
+            const formData = new FormData();
+            formData.append('file', currentFile);
+            formData.append('secret_message', message);
+
+            const response = await fetch('/encode_image', {
+                method: 'POST',
+                body: formData
             });
-            
-            const response = await fetch(`/encode_image?${params.toString()}`, {
-                method: 'POST'
-            });
-            
+
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.detail || 'Encoding failed');
             }
-            
-            const data = await response.json();
-            
+
+            const blob = await response.blob();
+            if (processedObjectUrl) URL.revokeObjectURL(processedObjectUrl);
+            processedObjectUrl = URL.createObjectURL(blob);
+            const downloadName = `covert_${currentFile.name.replace(/\.[^./]+$/, '')}.png`;
+
             // Display encoded image in workspace display
             processedLabel.innerText = "Encoded (Stego) Image";
-            processedPreviewImg.src = data.image_url;
+            processedPreviewImg.src = processedObjectUrl;
             processedPreviewImg.onload = () => {
                 processedPreviewBox.classList.remove('empty');
                 processedPreviewImg.classList.remove('hidden');
                 processedMeta.classList.remove('hidden');
-                procMetaName.innerText = `covert_${currentImageId.substring(0,6)}.png`;
-                downloadLink.href = data.image_url;
-                downloadLink.setAttribute('download', `covert_${currentImageId.substring(0,6)}.png`);
-                
+                procMetaName.innerText = downloadName;
+                downloadLink.href = processedObjectUrl;
+                downloadLink.setAttribute('download', downloadName);
+
                 log(`Message hidden successfully! Saved as PNG to preserve LSB bits.`, 'success');
-                log(`Stego Image ID: ${data.encoded_image_id.substring(0,8)}...`, 'success');
             };
         } catch (error) {
             log(`Encoding Error: ${error.message}`, 'error');
@@ -294,21 +292,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Operations Handlers: DECODE
     decodeBtn.addEventListener('click', async () => {
-        if (!currentImageId) return;
-        
+        if (!currentFile) return;
+
         try {
             decodeBtn.disabled = true;
             log('Decoding image. Extracting LSB bit streams...');
-            
-            const response = await fetch(`/decode_image?image_id=${currentImageId}`, {
-                method: 'POST'
+
+            const formData = new FormData();
+            formData.append('file', currentFile);
+
+            const response = await fetch('/decode_image', {
+                method: 'POST',
+                body: formData
             });
-            
+
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.detail || 'Decoding failed');
             }
-            
+
             const data = await response.json();
             if (data.decoded_message) {
                 log('Extraction Complete. Hidden message identified.', 'success');
@@ -325,21 +327,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Operations Handlers: DETECT / STEGANALYSIS
     detectBtn.addEventListener('click', async () => {
-        if (!currentImageId) return;
-        
+        if (!currentFile) return;
+
         try {
             detectBtn.disabled = true;
             log('Scanning image signatures. Running LSB heuristic checks...');
-            
-            const response = await fetch(`/analyze_image?image_id=${currentImageId}`, {
-                method: 'POST'
+
+            const formData = new FormData();
+            formData.append('file', currentFile);
+
+            const response = await fetch('/analyze_image', {
+                method: 'POST',
+                body: formData
             });
-            
+
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.detail || 'Analysis failed');
             }
-            
+
             const data = await response.json();
             if (data.is_hidden) {
                 log('STEGANOGRAPHY DETECTED!', 'error');
